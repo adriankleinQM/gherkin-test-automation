@@ -10,7 +10,10 @@ import java.sql.SQLException
 
 class DB2DriverKT {
     private val jdbcClassName = "com.ibm.db2.jcc.DB2Driver"
-    private var connection: Connection? = null
+
+    companion object {
+        val connections: MutableMap<String, Connection> = HashMap()
+    }
 
     @Throws(SQLException::class, IOException::class, ClassNotFoundException::class)
     private fun initConnection(settings: ConnectionSettings) {
@@ -20,14 +23,16 @@ class DB2DriverKT {
         val db2Schema = settings.db2Schema
         Security.insertProviderAt(BouncyCastleProvider(), 1)
         Class.forName(jdbcClassName)
-        connection = DriverManager.getConnection(db2Url, db2User, db2Password)
+        val connection = DriverManager.getConnection(db2Url, db2User, db2Password)
         connection?.schema = db2Schema
+        connections.put(getConnectionIdentifier(settings), connection);
     }
 
     @Throws(SQLException::class)
     fun getConnection(settings: ConnectionSettings): Connection? {
         return try {
-            if (connection == null || connection!!.isClosed) {
+            val connection = connections.get(getConnectionIdentifier(settings))
+            if (connection == null || connection.isClosed) {
                 initConnection(settings)
             }
             connection
@@ -38,15 +43,8 @@ class DB2DriverKT {
         }
     }
 
-
-    protected fun finalize() {
-        if (connection != null) {
-            try {
-                connection!!.close()
-            } catch (e: SQLException) {
-                e.printStackTrace()
-            }
-        }
+    private fun getConnectionIdentifier(settings: ConnectionSettings) : String{
+        return (settings.db2Database + settings.db2Schema + settings.db2User)
     }
 
 }
